@@ -29,16 +29,22 @@ void FDM(gsl_vector *b, gsl_matrix *A) {
     gsl_permutation *p = gsl_permutation_alloc(vector_N);
     get_LAE(A);
     print_LAE(b, A);
-    print_temperature(b);
+//    print_temperature(b);
+    printf("\n");
     gsl_linalg_LU_decomp(A, p, &s);
     gsl_linalg_LU_solve(A, p, b, x);
     print_temperature(x);
+    printf("\n");
     create_plot(b);
     create_plot(x);
     for (int j = 0; j < model_time; j++) {
         boundary_condition(x);
+//        printf("B:\n");
+//        print_temperature(x);
         gsl_linalg_LU_svx(A, p, x);
+        printf("X:\n");
         print_temperature(x);
+        printf("\n");
         create_plot(x);
     }
 }
@@ -75,7 +81,7 @@ void print_temperature(gsl_vector *t) {
 
 /*
  * Составление СЛАУ с уравнениями для внутренних узлов сетки, а также
- * уравненияи для гранчных узлов стеки, на которые наложены
+ * уравнениями для гранчных узлов стеки, на которые наложены
  * граничные условия 2 рода
  */
 void get_LAE(gsl_matrix *A) {
@@ -102,6 +108,12 @@ void get_LAE(gsl_matrix *A) {
                 gsl_matrix_set(A, (i + 1) + x_nodes * k, (i + 1) + x_nodes * k, a / (dx / dx));
                 gsl_matrix_set(A, (i + 1) + x_nodes * k, i + x_nodes * k, -a / (dx / dx));
             }
+
+            if ((i  == x_nodes / 2) && (k == 1)){
+                gsl_matrix_set(A, (i) + x_nodes * (k-1), (i) + x_nodes * (k-1),  -2*(a / dy));
+                gsl_matrix_set(A, (i) + x_nodes * (k-1), (i) + x_nodes * (k), (a / dy));
+            }
+
         }
     }
 }
@@ -117,6 +129,8 @@ void boundary_condition(gsl_vector *x) {
         for (int i = 0; i < x_nodes; i++) {
             if (j == 0)
                 gsl_vector_set(x, i, bottom_bound);
+            if ((j == 0) && (i == x_nodes / 2))
+                gsl_vector_set(x, i, 0);
             if (j == y_nodes - 1)
                 gsl_vector_set(x, (j) * x_nodes + i, top_bound);
         }
