@@ -10,6 +10,7 @@
  * */
 
 #include "fdm_bar.h"
+//#include "../../development-of-software-systems-BMSTU-labs-/GaussMultithread/GaussMultithread.h"
 
 // Установка краевых условий
 void initialization(gsl_vector *v) {
@@ -27,24 +28,22 @@ void FDM(gsl_vector *b, gsl_matrix *A) {
     int s;
     gsl_vector *x = gsl_vector_alloc(vector_N);
     gsl_permutation *p = gsl_permutation_alloc(vector_N);
-    get_LAE(A);
+    get_LAE(A, b);
     print_LAE(b, A);
-//    print_temperature(b);
-    printf("\n");
+//    gauss_solve(A->data, b->data, x->data, vector_N, vector_N);
     gsl_linalg_LU_decomp(A, p, &s);
     gsl_linalg_LU_solve(A, p, b, x);
     print_temperature(x);
-    printf("\n");
     create_plot(b);
     create_plot(x);
     for (int j = 0; j < model_time; j++) {
         boundary_condition(x);
-//        printf("B:\n");
-//        print_temperature(x);
-        gsl_linalg_LU_svx(A, p, x);
-        printf("X:\n");
+//        gauss_solve(A->data, x->data, x->data, vector_N, vector_N);
+//        print_LAE(x, A);
         print_temperature(x);
         printf("\n");
+        gsl_linalg_LU_svx(A, p, x);
+        print_temperature(x);
         create_plot(x);
     }
 }
@@ -72,7 +71,7 @@ void print_LAE(const gsl_vector *b, const gsl_matrix *A) {
 void print_temperature(gsl_vector *t) {
     for (int i = y_nodes - 1; i >= 0; i--) {
         for (int j = 0; j < x_nodes; j++) {
-            printf("%.0f ", t->data[i * x_nodes + j]);
+            printf("%4.0f ", t->data[i * x_nodes + j]);
         }
         putchar('\n');
     }
@@ -81,79 +80,104 @@ void print_temperature(gsl_vector *t) {
 
 /*
  * Составление СЛАУ с уравнениями для внутренних узлов сетки, а также
- * уравнениями для гранчных узлов стеки, на которые наложены
+ * уравненияи для гранчных узлов стеки, на которые наложены
  * граничные условия 2 рода
  */
-void get_LAE(gsl_matrix *A) {
-    for (int k = 1; k < y_nodes - 1; k++) {
-        for (int i = 1; i < x_nodes - 1; i++) {
-            gsl_matrix_set(A, i + x_nodes * k, i + 1 + x_nodes * k, -a / (dy * dy));
-            gsl_matrix_set(A, i + x_nodes * k, i + x_nodes * k,
-                           ((2 * a / (dx * dx)) + (2 * a / (dy * dy)) + 1.0 / dt));
-            gsl_matrix_set(A, i + x_nodes * k, i - 1 + x_nodes * k, -a / (dx * dx));
-            gsl_matrix_set(A, i + x_nodes * k, i + x_nodes * (k + 1), -a / (dy * dy));
-            gsl_matrix_set(A, i + x_nodes * k, i + x_nodes * (k - 1), -a / (dy * dy));
-            if (k == y_nodes - 2) {
-                gsl_matrix_set(A, (i - 1) + x_nodes * (k + 1), (i - 1) + x_nodes * (k + 1), a / dy);
-                gsl_matrix_set(A, (i - 1) + x_nodes * (k + 1), (i - 1) + x_nodes * k, -a / dy);
-                gsl_matrix_set(A, (i) + x_nodes * (k + 1), (i) + x_nodes * (k + 1), a / dy);
-                gsl_matrix_set(A, (i) + x_nodes * (k + 1), (i) + x_nodes * k, -a / dy);
-                if (i == x_nodes - 2) {
-                    gsl_matrix_set(A, (i + 1) + x_nodes * (k + 1), (i + 1) + x_nodes * (k + 1), a / dy);
-                    gsl_matrix_set(A, (i + 1) + x_nodes * (k + 1), (i + 1) + x_nodes * (k), -a / dy);
+
+void get_LAE(gsl_matrix *A, gsl_vector *b) {
+    float dx = 8.0 / (x_nodes - 1);
+    float dy = 6.0 / (y_nodes - 1);
+    for (int i = 0; i < vector_N; i++) {
+        float xc = 0, yc = 0;
+        for (int j = 0; j < vector_N; j++) {
+            if (i == j && xc + yc < 11 + dx) {
+                if (gsl_vector_get(b, i) == 0 && xc > 0.1 && yc > 0.1 && xc < 7.9 &&
+                    yc < 5.9)
+                {
+                    gsl_matrix_set(A, i, j + 1, a / (dx * dx));
+                    gsl_matrix_set(A, i, j, ((-2 * a / (dx * dx)) - (2 * a / (dy * dy)) - 1.0 / dt));
+                    gsl_matrix_set(A, i, j - 1, a / (dx * dx));
+                    gsl_matrix_set(A, i, j + x_nodes, a / (dy * dy));
+                    gsl_matrix_set(A, i, j - x_nodes, a / (dy * dy));
+
+                } else if (yc == 0 && gsl_vector_get(b, i) == 0) {
+                    gsl_matrix_set(A, i, j, a / (dy));
+                    gsl_matrix_set(A, i, i + x_nodes, -a / (dy));
                 }
-            }
 
-            if ((i == x_nodes - 2) && (k >= (y_nodes) / 2)) {
-                gsl_matrix_set(A, (i + 1) + x_nodes * k, (i + 1) + x_nodes * k, a / (dx / dx));
-                gsl_matrix_set(A, (i + 1) + x_nodes * k, i + x_nodes * k, -a / (dx / dx));
             }
-
-            if ((i  == x_nodes / 2) && (k == 1)){
-                gsl_matrix_set(A, (i) + x_nodes * (k-1), (i) + x_nodes * (k-1),  -2*(a / dy));
-                gsl_matrix_set(A, (i) + x_nodes * (k-1), (i) + x_nodes * (k), (a / dy));
-            }
-
+            if ((xc + dx) >= 8.001) {
+                xc = 0.0;
+                yc += dy;
+            } else
+                xc += dx;
         }
     }
 }
+
 // Установка граничных условий 1 и 2 рода
-void boundary_condition(gsl_vector *x) {
+void boundary_condition(gsl_vector *v) {
 
-    for (int j = 0; j < y_nodes; j++) {
-        gsl_vector_set(x, j * x_nodes, left_bound);
+    float x = 0, y = 0;
+    float dx = (float) 8 / (x_nodes - 1);
+    float dy = (float) 6 / (y_nodes - 1);
 
-        if (j > 0)
-            gsl_vector_set(x, j * x_nodes - 1, j <= y_nodes / 2 ?
-                                               bottom_right_bound : top_right_bound);
-        for (int i = 0; i < x_nodes; i++) {
-            if (j == 0)
-                gsl_vector_set(x, i, bottom_bound);
-            if ((j == 0) && (i == x_nodes / 2))
-                gsl_vector_set(x, i, 0);
-            if (j == y_nodes - 1)
-                gsl_vector_set(x, (j) * x_nodes + i, top_bound);
+    for (int i = 0; i < (int) x_nodes * y_nodes; i++) {
+        if (y == 0) {
+            gsl_vector_set(v, i, 0);
         }
+
+        if ((abs(x - 9) < dx && y <= 3) || (abs(y - 7) < dy && x <= 5)) {
+            gsl_vector_set(v, i, corner);
+        }
+
+        if (x == 0) {
+            gsl_vector_set(v, i, left_bound);
+        }
+
+        if (abs(x + y - 12) < dx / 2 && x > 5 && y > 3) {
+            //printf("YAY\n");
+            gsl_vector_set(v, i, 50);
+        }
+        if (x + y > 11 + dx) {
+            gsl_vector_set(v, i, 0);
+        }
+
+        x += dx;
+        if (x >= 8.001) {
+            x = 0.0;
+            y += dy;
+        }
+        if (y >= 6.001) {
+            x = 0;
+            y = 0;
+        }
+
     }
+/*
+    for (int i = 0; i < N; i++) {
+        //printf("[%.3f; %.3f] %g\n", x, y, gsl_vector_get(v, i));
+    }*/
+    putchar('\n');
 }
 
 // Создание цветовой гаммы распределения температуры в пластине
 void create_plot(gsl_vector *tepmerature) {
-    float d_x = 8.0 / (x_nodes - 1.0);
-    float d_y = 3.0 / (y_nodes - 1.0);
-    fprintf(gp, "set cbrange [0:400]\n"
-                "set yrange [0:3]\n"
+    float dx = (float) 8 / (x_nodes - 1);
+    float dy = (float) 6 / (y_nodes - 1);
+    fprintf(gp, "set cbrange [0:200]\n"
+                "set yrange [0:6]\n"
                 "set xrange [0:8]\n"
                 "set pm3d scansforward ftriangles map interpolate 10,10\n");
     fprintf(gp, "splot '-'\n");
-    for (int j = 0; j < y_nodes; j++) {
+    for (int j = 0; j < y_nodes; ++j) {
         for (int i = 0; i < x_nodes; i++) {
-            fprintf(gp, "%-15g %-15g %-15g\n", i * d_x, j * d_y, (tepmerature->data[j * x_nodes + i]));
+            fprintf(gp, "%-15f %-15f %-15g\n", i * dx, j * dy, tepmerature->data[j * x_nodes + i]);
         }
         fprintf(gp, "\n");
     }
     fprintf(gp, "e\n");
-    fprintf(gp, "pause 1\n");
+    fprintf(gp, "pause 0.5\n");
     fflush(gp);
 }
 
