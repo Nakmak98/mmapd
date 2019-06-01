@@ -10,6 +10,7 @@ const int vector_N = 8 * 6;
 const double dt = 1;
 const double left_bound = 200;
 const double corner = 50;
+const double champher = 50;
 const double init_condition = 0;
 const double a = 3;
 FILE *gp;

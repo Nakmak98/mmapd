@@ -30,9 +30,11 @@ void FDM(gsl_vector *b, gsl_matrix *A) {
     gsl_permutation *p = gsl_permutation_alloc(vector_N);
     get_LAE(A, b);
     print_LAE(b, A);
+//    print_temperature(b);
 //    gauss_solve(A->data, b->data, x->data, vector_N, vector_N);
     gsl_linalg_LU_decomp(A, p, &s);
     gsl_linalg_LU_solve(A, p, b, x);
+    printf("\n");
     print_temperature(x);
     create_plot(b);
     create_plot(x);
@@ -40,8 +42,8 @@ void FDM(gsl_vector *b, gsl_matrix *A) {
         boundary_condition(x);
 //        gauss_solve(A->data, x->data, x->data, vector_N, vector_N);
 //        print_LAE(x, A);
-        print_temperature(x);
-        printf("\n");
+//        print_temperature(x);
+//        printf("\n");
         gsl_linalg_LU_svx(A, p, x);
         print_temperature(x);
         create_plot(x);
@@ -119,12 +121,12 @@ void get_LAE(gsl_matrix *A, gsl_vector *b) {
 void boundary_condition(gsl_vector *v) {
 
     float x = 0, y = 0;
-    float dx = (float) 8 / (x_nodes - 1);
-    float dy = (float) 6 / (y_nodes - 1);
+    float dx =  8.0 / (x_nodes - 1);
+    float dy =  6.0 / (y_nodes - 1);
 
     for (int i = 0; i < (int) x_nodes * y_nodes; i++) {
         if (y == 0) {
-            gsl_vector_set(v, i, 0);
+            gsl_vector_set(v, i, 200);
         }
 
         if ((abs(x - 9) < dx && y <= 3) || (abs(y - 7) < dy && x <= 5)) {
@@ -137,7 +139,7 @@ void boundary_condition(gsl_vector *v) {
 
         if (abs(x + y - 12) < dx / 2 && x > 5 && y > 3) {
             //printf("YAY\n");
-            gsl_vector_set(v, i, 50);
+            gsl_vector_set(v, i, champher);
         }
         if (x + y > 11 + dx) {
             gsl_vector_set(v, i, 0);
